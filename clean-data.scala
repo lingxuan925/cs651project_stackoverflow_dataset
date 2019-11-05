@@ -6,7 +6,7 @@ import org.apache.spark.sql.functions.broadcast
 import org.apache.spark.sql.types._
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-
+import scala.util.matching._
 
 object CleanData {
   def main(args: Array[String]) {
@@ -48,8 +48,13 @@ object CleanData {
       .select(col("questionsUsers.id"), col("questionsUsers.title"), col("questionsUsers.creation_date"), col("questionsUsers.answer_count"),col("questionsUsers.favorite_count"), col("questionsUsers.score"), col("questionsUsers.tags"), col("questionsUsers.view_count"), col("questionsUsers.owner_user_id"), col("questionsUsers.reputation"), col("votes.vote_type_id"))
 //      .orderBy(desc("questionsUsers.answer_count"))
 
- //   df_questions_join_users_votes.show()
-    df_questions_join_users_votes.select("*").where(df_questions_join_users_votes.col("id") === 56274647).show()
+    val expr = "[0-9]".r
+    val df_questions_join_users_votes_clean = df_questions_join_users_votes
+//      .filter(!col("answer_count").rlike(expr))
+      .filter(row => row.getAs[String]("answer_count").matches("""\d+"""))
+
+    df_questions_join_users_votes_clean.show()
+//    df_questions_join_users_votes.select("*").where(df_questions_join_users_votes.col("id") === 56274647).show()
 
   }
 }
