@@ -33,7 +33,7 @@ object CleanData {
     gcsFS.delete(outputDir, true)
 
     val df_questions = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").load(inputPath+"*questions*")
-    val df_posts = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").option("nullValue", "null").load(inputPath+"stackoverflow*")
+    val df_posts = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").load(inputPath+"stackoverflow*")
     val df_users = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").load(inputPath+"users*")
     val df_votes = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").load(inputPath+"votes*")
 
@@ -46,37 +46,39 @@ object CleanData {
     //df_users_distinct.show() 
 
     val df_posts_join_users = df_posts_distinct.as("posts").join(df_users_distinct.as("users"), col("posts.owner_user_id") === col("users.id"), "inner")
-      .select(col("posts.id"), col("posts.title"), col("posts.creation_date"), col("posts.answer_count"),col("posts.favorite_count"), col("posts.score"), col("posts.tags"), col("posts.view_count"), col("posts.owner_user_id"), col("users.reputation"))
+      .select(col("posts.id"), col("posts.body"), col("posts.title"), col("posts.creation_date"), col("posts.answer_count"),col("posts.favorite_count"), col("posts.score"), col("posts.tags"), col("posts.view_count"), col("posts.owner_user_id"), col("users.reputation"))
 
 //    val df_posts_join_users_votes = df_posts_join_users.as("postsUsers").join(df_votes.as("votes"), col("postsUsers.id") === col("votes.post_id"), "inner").drop("id", "creation_date", "post_id")
     val df_posts_join_users_votes = df_posts_join_users.as("postsUsers").join(df_votes_distinct.as("votes"), col("postsUsers.id") === col("votes.post_id"), "inner")
-      .select(col("postsUsers.id"), col("postsUsers.title"), col("postsUsers.creation_date"), col("postsUsers.answer_count"),col("postsUsers.favorite_count"), col("postsUsers.score"), col("postsUsers.tags"), col("postsUsers.view_count"), col("postsUsers.owner_user_id"), col("postsUsers.reputation"), col("votes.vote_type_id"))
+      .select(col("postsUsers.id"), col("postsUsers.title"), col("postsUsers.body"), col("postsUsers.creation_date"), col("postsUsers.answer_count"),col("postsUsers.favorite_count"), col("postsUsers.score"), col("postsUsers.tags"), col("postsUsers.view_count"), col("postsUsers.owner_user_id"), col("postsUsers.reputation"), col("votes.vote_type_id"))
       .orderBy("postsUsers.answer_count")
+      .distinct()
+      .withColumn("label", lit(1))
 
-    df_posts_join_users_votes.show()
+//    df_posts_join_users_votes.show()
 
     val df_questions_join_users = df_questions_distinct.as("questions").join(df_users_distinct.as("users"), col("questions.owner_user_id") === col("users.id"), "inner")
-      .select(col("questions.id"), col("questions.title"), col("questions.creation_date"), col("questions.answer_count"),col("questions.favorite_count"), col("questions.score"), col("questions.tags"), col("questions.view_count"), col("questions.owner_user_id"), col("users.reputation"))
+      .select(col("questions.id"), col("questions.title"), col("questions.body"), col("questions.creation_date"), col("questions.answer_count"),col("questions.favorite_count"), col("questions.score"), col("questions.tags"), col("questions.view_count"), col("questions.owner_user_id"), col("users.reputation"))
 //    df_questions_join_users.show()
 
     val df_questions_join_users_votes = df_questions_join_users.as("questionsUsers").join(df_votes_distinct.as("votes"), col("questionsUsers.id") === col("votes.post_id"), "inner")
-      .select(col("questionsUsers.id"), col("questionsUsers.title"), col("questionsUsers.creation_date"), col("questionsUsers.answer_count"),col("questionsUsers.favorite_count"), col("questionsUsers.score"), col("questionsUsers.tags"), col("questionsUsers.view_count"), col("questionsUsers.owner_user_id"), col("questionsUsers.reputation"), col("votes.vote_type_id"))
+      .select(col("questionsUsers.id"), col("questionsUsers.title"), col("questionsUsers.body"), col("questionsUsers.creation_date"), col("questionsUsers.answer_count"),col("questionsUsers.favorite_count"), col("questionsUsers.score"), col("questionsUsers.tags"), col("questionsUsers.view_count"), col("questionsUsers.owner_user_id"), col("questionsUsers.reputation"), col("votes.vote_type_id"))
       .orderBy("questionsUsers.answer_count")
+      .distinct()
+      .withColumn("label", lit(0))
 
-    df_questions_join_users_votes.show()
-/*
-    val expr = "[0-9]".r
+//    df_questions_join_users_votes.show()
     val df_questions_join_users_votes_clean = df_questions_join_users_votes
       .filter(row => row match {
         case Row(id: Integer, title: String, creation_date: Timestamp, answer_count: Integer, favourite_count: Integer, score: Integer, tags: String, view_count: Integer, owner_user_id: Integer, reputation:  Integer, vote_type_id: Integer) => true
         case _ => false
       })
-*/
       //.filter(row => row.getAs[String]("answer_count").matches("""\d+"""))
 
-//    df_questions_join_users_votes_clean.show()
 //    df_questions_join_users_votes.select("*").where(df_questions_join_users_votes.col("id") === 56274647).show()
-    df_questions_join_users_votes.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save(outputPath+"question_new.csv")
-    df_posts_join_users_votes.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save(outputPath+"posts_new.csv")
+//    df_questions_join_users_votes.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save(outputPath+"question_new.csv")
+//    df_posts_join_users_votes.coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").save(outputPath+"posts_new.csv")
+    df_questions_join_users_votes.repartition(8).write.format("com.databricks.spark.csv").option("header", "true").save(outputPath+"question_new.csv")
+    df_posts_join_users_votes.repartition(8).write.format("com.databricks.spark.csv").option("header", "true").save(outputPath+"posts_new.csv")
   }
 }
