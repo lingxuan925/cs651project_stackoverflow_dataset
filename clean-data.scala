@@ -32,10 +32,10 @@ object CleanData {
 
     gcsFS.delete(outputDir, true)
 
-    val df_questions = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").load(inputPath+"*questions*")
+    val df_questions = sqlContext.read.format("csv").option("header", "true").option("escape", "\"").option("mode", "DROPMALFORMED").load(inputPath+"*questions*")
     val df_posts = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").load(inputPath+"stackoverflow*")
-    val df_users = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").load(inputPath+"users*")
-    val df_votes = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").load(inputPath+"votes*")
+    val df_users = sqlContext.read.format("csv").option("header", "true").option("escape", "\"").option("mode", "DROPMALFORMED").load(inputPath+"users*")
+    val df_votes = sqlContext.read.format("csv").option("header", "true").option("escape", "\"").option("mode", "DROPMALFORMED").load(inputPath+"votes*")
 
     val df_questions_distinct = df_questions.distinct()
     val df_posts_distinct = df_posts.distinct()
@@ -80,20 +80,11 @@ object CleanData {
       .orderBy("questionsUsers.answer_count")
       .distinct()
       .withColumn("label", lit(0).cast(IntegerType))
-
-    val df_questions_join_users_votes_clean = df_questions_join_users_votes
-      /*.filter(row => row match {
-        case Row(id: Integer, title: String, body: String, creation_date: String, answer_count: Integer, favourite_count: Integer, score: Integer, tags: String, view_count: Integer, owner_user_id: Integer, reputation:  Integer, vote_type_id: Integer, label: Integer) => false 
-        case _ => true
-      })
-*/
-      .filter(row => {
-        row.getAs("answer_count").isInstanceOf[String]
-      })
+      //.withColumn("body", concat( 
 
 //    df_questions_join_users_votes.select("*").where(df_questions_join_users_votes.col("id") === 56274647).show()
 
-    df_questions_join_users_votes_clean.repartition(8).write.format("com.databricks.spark.csv").option("header", "true").save(outputPath+"question_new.csv")
-//    df_posts_join_users_votes.repartition(8).write.format("com.databricks.spark.csv").option("header", "true").save(outputPath+"posts_new.csv")
+    df_questions_join_users_votes.repartition(1).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"question_final")
+//    df_posts_join_users_votes.repartition(8).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"posts_new.csv")
   }
 }
