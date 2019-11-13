@@ -23,6 +23,7 @@ object CleanData {
     val outputDir = new Path(outputPath)
     val sc = new SparkContext(new SparkConf().setAppName("Clean Data"))
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+    import sqlContext.implicits._
 
     val conf = sc.hadoopConfiguration
     conf.set("google.cloud.auth.service.account.enable", "true")
@@ -32,10 +33,10 @@ object CleanData {
 
     gcsFS.delete(outputDir, true)
 
-    val df_questions = sqlContext.read.format("csv").option("header", "true").option("escape", "\"").option("mode", "DROPMALFORMED").load(inputPath+"*questions*")
+    val df_questions = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").load(inputPath+"*questions*")
     val df_posts = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").load(inputPath+"stackoverflow*")
-    val df_users = sqlContext.read.format("csv").option("header", "true").option("escape", "\"").option("mode", "DROPMALFORMED").load(inputPath+"users*")
-    val df_votes = sqlContext.read.format("csv").option("header", "true").option("escape", "\"").option("mode", "DROPMALFORMED").load(inputPath+"votes*")
+    val df_users = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").load(inputPath+"users*")
+    val df_votes = sqlContext.read.format("csv").option("header", "true").option("mode", "DROPMALFORMED").load(inputPath+"votes*")
 
     val df_questions_distinct = df_questions.distinct()
     val df_posts_distinct = df_posts.distinct()
@@ -77,14 +78,14 @@ object CleanData {
 
     val df_questions_join_users_votes = df_questions_join_users.as("questionsUsers").join(df_votes_correctType.as("votes"), col("questionsUsers.id") === col("votes.post_id"), "inner")
       .select(col("questionsUsers.id"), col("questionsUsers.title"), col("questionsUsers.body"), col("questionsUsers.creation_date"), col("questionsUsers.answer_count"),col("questionsUsers.favorite_count"), col("questionsUsers.score"), col("questionsUsers.tags"), col("questionsUsers.view_count"), col("questionsUsers.owner_user_id"), col("questionsUsers.reputation"), col("votes.vote_type_id"))
-      .orderBy("questionsUsers.answer_count")
       .distinct()
-      .withColumn("label", lit(0).cast(IntegerType))
-      //.withColumn("body", concat( 
+      .map(row => ((row.getAs[Int](0), row.getAs[Int](10)), row.getAs[Int](11)))
+      .show()
+      //.withColumn("label", lit(0).cast(IntegerType))
 
 //    df_questions_join_users_votes.select("*").where(df_questions_join_users_votes.col("id") === 56274647).show()
 
-    df_questions_join_users_votes.repartition(1).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"question_final")
+//    df_questions_join_users_votes.repartition(1).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"question_final")
 //    df_posts_join_users_votes.repartition(8).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"posts_new.csv")
   }
 }
