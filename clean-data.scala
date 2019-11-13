@@ -79,13 +79,28 @@ object CleanData {
     val df_questions_join_users_votes = df_questions_join_users.as("questionsUsers").join(df_votes_correctType.as("votes"), col("questionsUsers.id") === col("votes.post_id"), "inner")
       .select(col("questionsUsers.id"), col("questionsUsers.title"), col("questionsUsers.body"), col("questionsUsers.creation_date"), col("questionsUsers.answer_count"),col("questionsUsers.favorite_count"), col("questionsUsers.score"), col("questionsUsers.tags"), col("questionsUsers.view_count"), col("questionsUsers.owner_user_id"), col("questionsUsers.reputation"), col("votes.vote_type_id"))
       .distinct()
-      .map(row => ((row.getAs[Int](0), row.getAs[Int](10)), row.getAs[Int](11)))
-      .show()
-      //.withColumn("label", lit(0).cast(IntegerType))
+
+    val df_questions_merge_vote_type_id = df_questions_join_users_votes
+      .groupBy("id")
+      .agg(collect_list("vote_type_id").as("vote_type_id"))
+      .withColumn("vote_type_id", arrayToStr(col("vote_type_id")))
+
+    val df_questions_final = df_questions_join_users_votes.drop("vote_type_id").as("t1").join(df_questions_merge_vote_type_id.as("t2"), col("t1.id") === col("t2.id"), "inner")
+      .select(col("t1.id"), col("t1.title"), col("t1.body"), col("t1.creation_date"), col("t1.answer_count"),col("t1.favorite_count"), col("t1.score"), col("t1.tags"), col("t1.view_count"), col("t1.owner_user_id"), col("t1.reputation"), col("t2.vote_type_id"))
+      .distinct()
+      .withColumn("label", lit(0).cast(IntegerType))
 
 //    df_questions_join_users_votes.select("*").where(df_questions_join_users_votes.col("id") === 56274647).show()
 
-//    df_questions_join_users_votes.repartition(1).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"question_final")
+    df_questions_final.repartition(1).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"question_final")
 //    df_posts_join_users_votes.repartition(8).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"posts_new.csv")
   }
+
+  /*because I aggregated the vote_type_id column as a list of ids, on same rows, 
+   to write to csv, need to convert to string using this functioa
+  */
+  val arrayToStr = udf((voteTypes: Seq[String]) => voteTypes match {
+    case null => null
+    case _ => s"""[${voteTypes.mkString("|")}]"""
+  })
 }
