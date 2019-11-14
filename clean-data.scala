@@ -2,13 +2,11 @@ package dataproc.codelab
   
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.functions.broadcast
 import org.apache.spark.sql.types._
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import scala.util.matching._
-import org.apache.spark.sql.types._
-import java.sql.Timestamp
+import java.util.Date
 import org.apache.hadoop.fs._
 
 object CleanData {
@@ -46,7 +44,7 @@ object CleanData {
     val df_questions_correctType = df_questions_distinct.selectExpr("cast(id as int) id", 
                         "cast(title as String) title", 
                         "cast(body as String) body", 
-                        "cast(creation_date as String) creation_date", 
+                        "cast(creation_date as date) creation_date", 
                         "cast(answer_count as int) answer_count",
                         "cast(favorite_count as int) favorite_count",
                         "cast(score as int) score",
@@ -60,17 +58,26 @@ object CleanData {
                         "cast(reputation as int) reputation")
     val df_votes_correctType = df_votes_distinct.selectExpr("cast(post_id as int) post_id",
                         "cast(vote_type_id as int) vote_type_id")
-/*
+
     val df_posts_join_users = df_posts_distinct.as("posts").join(df_users_distinct.as("users"), col("posts.owner_user_id") === col("users.id"), "inner")
       .select(col("posts.id"), col("posts.body"), col("posts.title"), col("posts.creation_date"), col("posts.answer_count"),col("posts.favorite_count"), col("posts.score"), col("posts.tags"), col("posts.view_count"), col("posts.owner_user_id"), col("users.reputation"))
 
 //    val df_posts_join_users_votes = df_posts_join_users.as("postsUsers").join(df_votes.as("votes"), col("postsUsers.id") === col("votes.post_id"), "inner").drop("id", "creation_date", "post_id")
     val df_posts_join_users_votes = df_posts_join_users.as("postsUsers").join(df_votes_distinct.as("votes"), col("postsUsers.id") === col("votes.post_id"), "inner")
       .select(col("postsUsers.id"), col("postsUsers.title"), col("postsUsers.body"), col("postsUsers.creation_date"), col("postsUsers.answer_count"),col("postsUsers.favorite_count"), col("postsUsers.score"), col("postsUsers.tags"), col("postsUsers.view_count"), col("postsUsers.owner_user_id"), col("postsUsers.reputation"), col("votes.vote_type_id"))
-      .orderBy("postsUsers.answer_count")
       .distinct()
-      .withColumn("label", lit(1))
-*/
+
+    val df_posts_merge_vote_type_id = df_posts_join_users_votes
+      .groupBy("id")
+      .agg(collect_list("vote_type_id").as("vote_type_id"))
+      .withColumn("vote_type_id", arrayToStr(col("vote_type_id")))
+
+    val df_posts_final = df_posts_join_users_votes.drop("vote_type_id").as("t1").join(df_posts_merge_vote_type_id.as("t2"), col("t1.id") === col("t2.id"), "inner")
+      .select(col("t1.id"), col("t1.title"), col("t1.body"), col("t1.creation_date"), col("t1.answer_count"),col("t1.favorite_count"), col("t1.score"), col("t1.tags"), col("t1.view_count"), col("t1.owner_user_id"), col("t1.reputation"), col("t2.vote_type_id"))
+      .distinct()
+      .withColumn("label", lit(1).cast(IntegerType))
+      .withColumn("creation_date", dateToUnixTimeStamp(col("creation_date")))
+
 //    df_posts_join_users_votes.show()
     val df_questions_join_users = df_questions_correctType.as("questions").join(df_users_correctType.as("users"), col("questions.owner_user_id") === col("users.id"), "inner")
       .select(col("questions.id"), col("questions.title"), col("questions.body"), col("questions.creation_date"), col("questions.answer_count"),col("questions.favorite_count"), col("questions.score"), col("questions.tags"), col("questions.view_count"), col("questions.owner_user_id"), col("users.reputation"))
@@ -89,11 +96,12 @@ object CleanData {
       .select(col("t1.id"), col("t1.title"), col("t1.body"), col("t1.creation_date"), col("t1.answer_count"),col("t1.favorite_count"), col("t1.score"), col("t1.tags"), col("t1.view_count"), col("t1.owner_user_id"), col("t1.reputation"), col("t2.vote_type_id"))
       .distinct()
       .withColumn("label", lit(0).cast(IntegerType))
+      .withColumn("creation_date", dateToUnixTimeStamp(col("creation_date")))
 
 //    df_questions_join_users_votes.select("*").where(df_questions_join_users_votes.col("id") === 56274647).show()
 
-    df_questions_final.repartition(1).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"question_final")
-//    df_posts_join_users_votes.repartition(8).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"posts_new.csv")
+    df_questions_final.repartition(10).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"question_final")
+    df_posts_final.repartition(10).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"questionwithans_final")
   }
 
   /*because I aggregated the vote_type_id column as a list of ids, on same rows, 
@@ -102,5 +110,12 @@ object CleanData {
   val arrayToStr = udf((voteTypes: Seq[String]) => voteTypes match {
     case null => null
     case _ => s"""[${voteTypes.mkString("|")}]"""
+  })
+
+  val dateToUnixTimeStamp = udf((datetime: Date) => datetime match {
+    case null => null
+    case _ => {
+      (datetime.getTime()/1000).toString()
+    }
   })
 }
