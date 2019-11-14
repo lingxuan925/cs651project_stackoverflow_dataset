@@ -70,7 +70,7 @@ object CleanData {
     val df_votes_correctType = df_votes_distinct.selectExpr("cast(post_id as int) post_id",
                         "cast(vote_type_id as int) vote_type_id")
 
-    val df_posts_join_users = df_posts_distinct.as("posts").join(df_users_distinct.as("users"), col("posts.owner_user_id") === col("users.id"), "inner")
+    val df_posts_join_users = df_posts_correctType.as("posts").join(df_users_distinct.as("users"), col("posts.owner_user_id") === col("users.id"), "inner")
       .select(col("posts.id"), col("posts.body"), col("posts.title"), col("posts.creation_date"), col("posts.answer_count"),col("posts.favorite_count"), col("posts.score"), col("posts.tags"), col("posts.view_count"), col("posts.owner_user_id"), col("users.reputation"))
 
 //    val df_posts_join_users_votes = df_posts_join_users.as("postsUsers").join(df_votes.as("votes"), col("postsUsers.id") === col("votes.post_id"), "inner").drop("id", "creation_date", "post_id")
