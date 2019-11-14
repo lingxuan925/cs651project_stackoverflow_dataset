@@ -51,6 +51,17 @@ object CleanData {
                         "cast(tags as int) tags",
                         "cast(view_count as int) view_count",
                         "cast(owner_user_id as int) owner_user_id")
+
+    val df_posts_correctType = df_posts_distinct.selectExpr("cast(id as int) id", 
+                        "cast(title as String) title", 
+                        "cast(body as String) body", 
+                        "cast(creation_date as date) creation_date", 
+                        "cast(answer_count as int) answer_count",
+                        "cast(favorite_count as int) favorite_count",
+                        "cast(score as int) score",
+                        "cast(tags as int) tags",
+                        "cast(view_count as int) view_count",
+                        "cast(owner_user_id as int) owner_user_id")
     //df_questions_correctType.printSchema()
     //df_questions_correctType.show()
 
