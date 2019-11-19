@@ -1,3 +1,5 @@
+package dataproc.codelab
+
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
@@ -8,32 +10,46 @@ import util.control.Breaks._
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types._
 
+import org.apache.hadoop.fs._
+
 object FormatTags{
   
   def main(args: Array[String]): Unit = {
     
-    val conf = new SparkConf().setAppName("Formate Data")
-    val sc = new SparkContext(conf)
+    if (args.length != 3) {
+      throw new IllegalArgumentException(
+          "Exactly 2 arguments are required: <inputPath> <outputPath>")
+    }
+
+    val inputPath = args(0)
+    val outputPath = args(1)
+    val tempPath = args(2)
+    val outputDir = new Path(outputPath)
+    val sc = new SparkContext(new SparkConf().setAppName("Format Data"))
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
-//    import sqlContext.implicits._
+
+    val conf = sc.hadoopConfiguration
+    conf.set("google.cloud.auth.service.account.enable", "true")
+    conf.set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS")
+    conf.set("fs.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem")
+    val gcsFS = new Path("gs://stackoverflow_bigdata/").getFileSystem(conf)
+
+    gcsFS.delete(outputDir, true)
     
     val spark = SparkSession.builder.getOrCreate()
-    val tags_path = "/Users/guanyingzhao/Desktop/cs651_project_data/stackoverflows_tags.csv"
-    val ques_path = "/Users/guanyingzhao/Desktop/cs651_project_data/stackoverflows_questions.csv"
-    val out_path = "/Users/guanyingzhao/Desktop/cs651_project_data/stackoverflows_split_tags.csv"
-    // read csv file
+
     val tags_df = spark.read.format("csv")
     .option("inferSchema", "true")
     .option("header", "true")
     .option("mode", "DROPMALFORMED")
-    .load(tags_path)
+    .load(inputPath+"*tags*")
     .toDF()
 
     val ques_df = spark.read.format("csv")
     .option("inferSchema", "true")
     .option("header", "true")
     .option("mode", "DROPMALFORMED")
-    .load(ques_path)
+    .load(tempPath)
     .toDF()
 //    .limit(1000)
     
@@ -59,7 +75,7 @@ object FormatTags{
               if (t_len <= len) {
                 val t_part = srow.substring(i, i + t_len)
                 if (t_part == t) {
-                  out += "," + t_part
+                  out += "|" + t_part
                   i += t_len
                   len -= t_len
                   p1 = false
@@ -94,7 +110,7 @@ object FormatTags{
                 if (t_len <= i) {
                   val t_part = srow.substring(i - t_len, i)
                   if (t_part == t) {
-                    out = "," + t_part + out
+                    out = "|" + t_part + out
                     i -= t_len
                     len -= t_len
                     p2 = false
@@ -126,11 +142,12 @@ object FormatTags{
       
      val ndf = spark.createDataFrame(tagsCol, schema)
      val jdf = ndf.join(ques_df, ndf("id2") === ques_df("id"), "inner")
+       .drop("id")
+       .filter(col("split_tags") =!= "*****")
      
-     jdf.show()
+//     jdf.show()
      
-//     val out_df = fdf
-//     .write.format("com.databricks.spark.csv")
-//     .option("header", "true").csv(out_path)
+     jdf.repartition(1).write.format("com.databricks.spark.csv")
+      .option("header", "true").csv(outputPath)
   }
 }

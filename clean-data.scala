@@ -48,7 +48,7 @@ object CleanData {
                         "cast(answer_count as int) answer_count",
                         "cast(favorite_count as int) favorite_count",
                         "cast(score as int) score",
-                        "cast(tags as int) tags",
+                        "cast(tags as String) tags",
                         "cast(view_count as int) view_count",
                         "cast(owner_user_id as int) owner_user_id")
 
@@ -59,7 +59,7 @@ object CleanData {
                         "cast(answer_count as int) answer_count",
                         "cast(favorite_count as int) favorite_count",
                         "cast(score as int) score",
-                        "cast(tags as int) tags",
+                        "cast(tags as String) tags",
                         "cast(view_count as int) view_count",
                         "cast(owner_user_id as int) owner_user_id")
     //df_questions_correctType.printSchema()
@@ -109,10 +109,12 @@ object CleanData {
       .withColumn("label", lit(0).cast(IntegerType))
       .withColumn("creation_date", dateToUnixTimeStamp(col("creation_date")))
 
-//    df_questions_join_users_votes.select("*").where(df_questions_join_users_votes.col("id") === 56274647).show()
+//    df_posts_final.select("*").where(df_posts_join_users_votes.col("id") === 12551290).show()
 
     df_questions_final.repartition(10).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"question_final")
-    df_posts_final.repartition(10).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"questionwithans_final")
+    //val df_posts_final_remove_empty_title = df_posts_final.select("*").where(df_posts_final.col("title") =!= "")
+    df_posts_final.filter(col("title") =!= "")
+      .repartition(100).write.format("com.databricks.spark.csv").option("quote", "\"").option("escape", "\"").option("header", "true").save(outputPath+"questionwithans_final")
   }
 
   /*because I aggregated the vote_type_id column as a list of ids, on same rows, 
@@ -120,7 +122,7 @@ object CleanData {
   */
   val arrayToStr = udf((voteTypes: Seq[String]) => voteTypes match {
     case null => null
-    case _ => s"""[${voteTypes.mkString("|")}]"""
+    case _ => s"""${voteTypes.mkString("|")}"""
   })
 
   val dateToUnixTimeStamp = udf((datetime: Date) => datetime match {
